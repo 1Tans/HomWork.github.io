@@ -60,10 +60,10 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
     import { 
-      getFirestore, collection, doc, setDoc, getDoc, deleteDoc, onSnapshot, updateDoc, arrayUnion, enableIndexedDbPersistence
+      getFirestore, collection, doc, setDoc, updateDoc, deleteDoc, onSnapshot, enableIndexedDbPersistence, arrayUnion, getDoc
     } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
 
-    // 🔥 Firebase config ของตัน
+    // 🔥 Firebase ของตัน
     const firebaseConfig = {
       apiKey: "AIzaSyB-0FWP39H0wli0ud2HWPOoGfoOUAaxfPU",
       authDomain: "home-work-9cf09.firebaseapp.com",
@@ -76,14 +76,12 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-
-    // ✅ เปิด offline sync
-    enableIndexedDbPersistence(db).catch((err) => console.warn("Offline error:", err));
+    enableIndexedDbPersistence(db).catch(err => console.warn("Offline error:", err));
 
     let currentSubject = "";
     let unsubscribeHW = null;
 
-    // ---------------- โหลดรายวิชา ----------------
+    // ---------- โหลดรายวิชา ----------
     function loadSubjects() {
       const subjectList = document.getElementById("subject-list");
       onSnapshot(collection(db, "subjects"), (snapshot) => {
@@ -110,16 +108,16 @@
       });
     }
 
-    // ---------------- เพิ่มวิชาใหม่ ----------------
+    // ---------- เพิ่มวิชา ----------
     document.getElementById("add-subject-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const sub = document.getElementById("new-subject").value.trim();
       if (!sub) return;
-      await setDoc(doc(db, "subjects", sub), { homeworks: [] });
+      await setDoc(doc(db, "subjects", sub), { homeworks: [] }, { merge: true });
       document.getElementById("new-subject").value = "";
     });
 
-    // ---------------- เปิดดูการบ้าน ----------------
+    // ---------- เปิดดูการบ้าน ----------
     async function openSubject(sub) {
       currentSubject = sub;
       document.getElementById("subject-section").style.display = "none";
@@ -134,7 +132,7 @@
       document.getElementById("homework-section").style.display = "none";
     });
 
-    // ---------------- แสดงการบ้านแบบเรียลไทม์ ----------------
+    // ---------- แสดงการบ้านแบบเรียลไทม์ ----------
     function renderHomework() {
       const hwList = document.getElementById("hw-list");
       unsubscribeHW = onSnapshot(doc(db, "subjects", currentSubject), (snap) => {
@@ -158,7 +156,7 @@
       });
     }
 
-    // ---------------- เพิ่มการบ้าน ----------------
+    // ---------- เพิ่มการบ้าน (เร็วขึ้น) ----------
     document.getElementById("hw-form").addEventListener("submit", async (e) => {
       e.preventDefault();
       const name = document.getElementById("hw-name").value.trim();
@@ -166,17 +164,29 @@
       const date = document.getElementById("hw-date").value;
       if (!name) return;
 
+      // ✅ แสดงใน UI ก่อนเลย
+      const hwList = document.getElementById("hw-list");
+      const temp = document.createElement("div");
+      temp.className = "homework-item";
+      temp.innerHTML = `
+        <div>
+          <strong>${name}</strong><br>
+          <small>วันสั่ง: ${assign}</small><br>
+          <small>กำหนดส่ง: ${date}</small>
+        </div>
+        <button class="delete-btn">ลบ</button>
+      `;
+      hwList.appendChild(temp);
+
+      // ✅ บันทึกทันทีโดยไม่ต้องรออ่านก่อน
       const docRef = doc(db, "subjects", currentSubject);
-      const snap = await getDoc(docRef);
-      if (!snap.exists()) {
-        await setDoc(docRef, { homeworks: [{ name, assign, date }] });
-      } else {
-        await updateDoc(docRef, { homeworks: arrayUnion({ name, assign, date }) });
-      }
+      await setDoc(docRef, { homeworks: arrayUnion({ name, assign, date }) }, { merge: true })
+        .catch((err) => console.error("❌ Error:", err));
+
       e.target.reset();
     });
 
-    // ---------------- ลบการบ้าน ----------------
+    // ---------- ลบการบ้าน ----------
     async function deleteHomework(index) {
       const docRef = doc(db, "subjects", currentSubject);
       const snap = await getDoc(docRef);
@@ -186,19 +196,19 @@
       await updateDoc(docRef, { homeworks: data.homeworks });
     }
 
-    // ---------------- ลบวิชา ----------------
+    // ---------- ลบวิชา ----------
     async function deleteSubject(sub) {
       if (!confirm(`แน่ใจว่าจะลบ "${sub}" และงานทั้งหมด?`)) return;
       await deleteDoc(doc(db, "subjects", sub));
     }
 
-    // ---------------- เริ่มทำงาน ----------------
+    // ---------- เริ่ม ----------
     loadSubjects();
 
-    // ---------------- ลงทะเบียน Service Worker ----------------
+    // ---------- Service Worker ----------
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js')
-        .then(reg => console.log("✅ Service Worker registered:", reg.scope))
+        .then(reg => console.log("✅ Service Worker:", reg.scope))
         .catch(err => console.error("❌ SW failed:", err));
     }
   </script>
